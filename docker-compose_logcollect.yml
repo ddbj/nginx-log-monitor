@@ -67,6 +67,7 @@ services:
     image: docker.elastic.co/beats/filebeat:7.10.2
     container_name: filebeat_logcollect
     tty: true
+    command: --strict.perms=false
     environment:
       - "TZ=Asia/Tokyo"
       - "no_proxy=elasticsearch_logcollect"
