@@ -1,0 +1,84 @@
+version: '3'
+services:
+  elasticsearch_logcollect:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
+    container_name: elasticsearch_logcollect
+    environment:
+      - "TZ=Asia/Tokyo"
+      - ELASTIC_PASSWORD=changeme
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - bootstrap.memory_lock=true
+      - cluster.name=docker-cluster
+      - "discovery.type=single-node"
+      - "http.max_content_length=200m"
+      - "network.host=_local_,_site_"
+      - "script.painless.regex.enabled=true"
+      - "xpack.monitoring.collection.enabled=true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./es_logcollect/data:/usr/share/elasticsearch/data
+      - ./es_logcollect/share/log4j2.properties:/usr/share/elasticsearch/config/log4j2.properties
+      - ./es_logcollect/logs:/usr/share/elasticsearch/logs
+    ports:
+      - 19200:9200
+    networks:
+      - esnet_logcollect
+    restart: always
+
+  kibana_logcollect:
+    image: docker.elastic.co/kibana/kibana:7.10.2
+    container_name: kibana_logcollect
+    ports:
+      - 15601:5601
+    environment:
+      - "TZ=Asia/Tokyo"
+      - "ELASTICSEARCH_HOSTS=http://elasticsearch_logcollect:9200"
+      - "SERVER_NAME=kibana"
+      - "SERVER_HOST=0.0.0.0"
+      - "LOGGING_DEST=/mnt/kibana.log"
+    volumes:
+      - ./kibana_logcollect/logs:/mnt
+    networks:
+      - esnet_logcollect
+    restart: always
+
+  filebeat_support:
+    image: filebeat_support
+    build: 
+      context: filebeat_support
+      dockerfile: Dockerfile
+    container_name: filebeat_support
+    tty: true
+    environment:
+      - "TZ=Asia/Tokyo"
+      - "no_proxy=kibana_logcollect"
+    env_file:
+      - logcollect.env
+    volumes:
+      - ./filebeat_support/data:/opt/filebeat_support/data
+      - ./filebeat_support/logs:/opt/filebeat_support/logs
+    networks:
+     - esnet_logcollect
+
+  filebeat_logcollect:
+    image: docker.elastic.co/beats/filebeat:7.10.2
+    container_name: filebeat_logcollect
+    tty: true
+    command: --strict.perms=false
+    environment:
+      - "TZ=Asia/Tokyo"
+      - "no_proxy=elasticsearch_logcollect"
+    env_file:
+      - logcollect.env
+    volumes:
+      - ./filebeat_logcollect/conf/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - /path/to/nginx/logs:/data/nginx/logs
+    networks:
+     - esnet_logcollect
+
+networks:
+  esnet_logcollect:
+
